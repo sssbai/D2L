@@ -11,22 +11,17 @@ from torch import nn
 from typing import Iterable
 from linear_regression.datasets.data_util import data_iter
 from linear_regression.manual_implementation.loss import squared_loss
-def train_one_epoch(model, loss, batch_size, features, labels, optimizer, epochs:int, lr = 0.03,w_size=(3,1)):
-    w = torch.normal(0, 0.01, w_size, requires_grad=True)
-    b = torch.zeros(1, requires_grad=True)
-    metrics = {"val_loss":[], "train_loss":[]}
-    for epoch in range(epochs):
-        for x, y in data_iter(batch_size, features,labels):
-            y_hat = model(x, w, b)
-            l = loss(y_hat, y)
-            l.sum().backward()
-            metrics["train_loss"].append(l.sum().item())
-            optimizer([w, b], lr, batch_size)
-        with torch.no_grad():
-            l = loss(model(features, w, b), labels)
-            metrics["val_loss"].append(l.mean().item())
-            print(f"epoch {epoch + 1}, loss {float(l.mean()):f}")
-    return metrics, {"w":w.detach(), "b":b.detach()}
+def train_one_epoch(model, criterion, train_data_loader, optimizer, lr = 0.03, parameter=None, batch_size=1):
+    metrics = {"train_loss":[]}
+    w = parameter['w']
+    b = parameter['b']
+    for x, y in train_data_loader:
+        y_hat = model(x, w, b)
+        l = criterion(y_hat, y)
+        l.sum().backward()
+        metrics["train_loss"].append(l.sum().item())
+        optimizer([w, b], lr, batch_size)
+    return metrics, {"w":w, "b":b}
     
     
             
