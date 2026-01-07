@@ -11,13 +11,15 @@ warnings.filterwarnings("ignore", category=UserWarning)
 import argparse
 
 import torch
+import time
 from collections import defaultdict
 from torch.utils.data import DataLoader
 from torchvision.datasets import FashionMNIST
 from datasets.fashion_mnist import make_fashion_mnist_transforms
 import matplotlib.pyplot as plt
 from util.plot_utils import plot, save_plot
-
+from engine import train_one_epoch, evaluate
+import wandb
 def main_manual_linreg():
     from linear_regression.datasets.data import synthetic_data
     from linear_regression.datasets.data_util import data_iter
@@ -69,6 +71,7 @@ def main_manual_linreg():
     
     plot(x.flatten(), [y, pred_y], xlabel="x", ylabel="y")
     save_plot("manual_linreg_true_vs_pred_epoch_"+str(epochs))
+
 def main_concise_linreg():
     from linear_regression.datasets.data import synthetic_data
     from linear_regression.datasets.data_util import data_iter
@@ -117,7 +120,6 @@ def main_concise_linreg():
     plot(x.flatten(), [y, pred_y], xlabel="x", ylabel="y")
     save_plot("concise_linreg_true_vs_pred_epoch_"+str(epochs))
    
-   
 def main_manual_linregsm():
     from soft_max.manual_implementation.engine import train_one_epoch, evaluate
     from soft_max.manual_implementation import build_model
@@ -158,8 +160,8 @@ def main_manual_linregsm():
     titles = [true+'\n'+pred for true, pred in zip(trues,preds)]
     n=10
     show_images(x[:n].reshape(n, 28, 28), 1, n, titles=titles)
-    plt.show()
-     
+    plt.show()  
+
 def main_concise_linregsm():
     from soft_max.concise_implementation.model import SetCriterion, PostProcess, LinRegSm
     from soft_max.concise_implementation.engine import train_one_epoch, evaluate
@@ -174,11 +176,18 @@ def main_concise_linregsm():
     criterion = SetCriterion(args)
     postprocessor = PostProcess()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+    
+    wandb.init(project=args.project,
+               dir = args.wandb_dir,
+               name = model.__class__.__name__ + "_" + time.asctime(),
+               reinit=True
+               )
     metrics = defaultdict(list)
     class_preds = [[0]*args.num_classes]
     for epoch in range(args.epochs):
         train_stats = train_one_epoch(model, criterion, dataset_loader_train, optimizer, epoch)
-        test_stats, fashionmnist_evaluator = evaluate(model, criterion, postprocessor, dataset_loader_test, args)
+        test_stats, fashionmnist_evaluator = evaluate(model, postprocessor, dataset_loader_test, args)
+        wandb.log({**train_stats, **test_stats})
         for k, v in train_stats.items():
             metrics[k].append(v)
         for k, v in test_stats.items():
@@ -190,7 +199,75 @@ def main_concise_linregsm():
         plot(v)
         save_plot("_".join([model.__class__.__name__, k]))
         plt.close()
+
+def main_mlp():
+    from mlp.model import MLP, SetCriterion, PostProcess
+    args = get_args_parser()
+    dataset_train, dataset_test = get_datasets(args)
+    data_train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    data_test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    model = MLP(num_inputs=args.num_inputs, num_classes=args.num_classes)
+    criterion = SetCriterion(args)
+    postprocessor = PostProcess()
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+    if args.wandb:
+        wandb.init(project=args.project,
+                dir = args.wandb_dir,
+                name = model.__class__.__name__ + "_" + time.asctime(),
+                reinit=True
+                )
+    metrics = defaultdict(list)
+    for epoch in range(args.epochs):
+        train_stats = train_one_epoch(model,criterion, data_train_loader, optimizer, epoch)
+        test_stats, fashionmnist_evaluator = evaluate(model, postprocessor, data_test_loader, args)
+        if args.wandb:
+            wandb.log({**train_stats, **test_stats})
+        for k, v in train_stats.items():
+            metrics[k].append(v)
+        for k, v in test_stats.items():
+            metrics[k].append(v)
+        metrics['classes'].append([x/y for x, y in zip(fashionmnist_evaluator.pred_counts,fashionmnist_evaluator.label_counts)])
     
+    metrics['classes'] = list(map(list, zip(*metrics['classes'])))
+    for k, v in metrics.items():
+        plot(v)
+        save_plot("_".join([model.__class__.__name__, k]))
+        plt.close()  
+
+def main_mlp_decay():
+    from mlp.model import MLP, SetCriterion, PostProcess
+    args = get_args_parser()
+    dataset_train, dataset_test = get_datasets(args)
+    data_train_loader = torch.utils.data.DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    data_test_loader = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    model = MLP(num_inputs=args.num_inputs, num_classes=args.num_classes)
+    criterion = SetCriterion(args)
+    postprocessor = PostProcess()
+    optimizer = torch.optim.SGD([{"params":[model.linear1.weight, model.linear2.weight], "weight_decay":args.weight_decay}, {"params": [model.linear1.bias, model.linear2.bias], "weight_decay":0.0}], lr=args.learning_rate)
+    if args.wandb:
+        wandb.init(project=args.project,
+                dir = args.wandb_dir,
+                name = model.__class__.__name__ +"_weight_decay_" + time.asctime(),
+                reinit=True
+                )
+    metrics = defaultdict(list)
+    for epoch in range(args.epochs):
+        train_stats = train_one_epoch(model,criterion, data_train_loader, optimizer, epoch)
+        test_stats, fashionmnist_evaluator = evaluate(model, postprocessor, data_test_loader, args)
+        if args.wandb:
+            wandb.log({**train_stats, **test_stats})
+        for k, v in train_stats.items():
+            metrics[k].append(v)
+        for k, v in test_stats.items():
+            metrics[k].append(v)
+        metrics['classes'].append([x/y for x, y in zip(fashionmnist_evaluator.pred_counts,fashionmnist_evaluator.label_counts)])
+    
+    metrics['classes'] = list(map(list, zip(*metrics['classes'])))
+    for k, v in metrics.items():
+        plot(v)
+        save_plot("_".join([model.__class__.__name__, k]))
+        plt.close()  
+        
 def get_args_parser():
     parser = argparse.ArgumentParser(
         description='The study of D2L.')
@@ -201,14 +278,19 @@ def get_args_parser():
     parser.add_argument("--test_set", default="", type=str)
     parser.add_argument("--data_root", default="data", type=str)
     parser.add_argument("--batch_size", default=100, type=int)
+    parser.add_argument("--weight_decay", default=1e-5, type=float)
     parser.add_argument("--learning_rate", default=1e-1, type=float)
     parser.add_argument("--num_workers", default=1, type=int)
     parser.add_argument("--start_epoch", default=0, type=int)
-    parser.add_argument("--epochs", default=10, type=int)
+    parser.add_argument("--epochs", default=50, type=int)
     parser.add_argument("--num_inputs", default=784, type=int)
     parser.add_argument("--num_classes", default=10, type=int)
+    parser.add_argument("--project", default="D2L", type=str)
+    parser.add_argument("--wandb_dir", default="wandb", type=str)
+    parser.add_argument("--wandb", default=True, type=bool)
     args = parser.parse_args()
     return args
+
 def get_datasets(args):
     train_set = args.train_set
     test_set = args.test_set
@@ -220,8 +302,9 @@ if __name__ == "__main__":
     # main_manual_linreg()
     # main_concise_linreg()
     # main()
-    main_concise_linregsm()
-    
+    # main_concise_linregsm()
+    # main_mlp()
+    main_mlp_decay()
     # x = torch.arange(20).reshape(4, 5)
     # print("x = ", x)
     # y = torch.arange(1,5).reshape(-1, 1)

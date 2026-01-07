@@ -2,6 +2,14 @@
 # -*- encoding: utf-8 -*-
 '''
 @File    :   engine.py
+@Time    :   2026/01/07 15:47:54
+@Author  :   sss
+@description   :   xxxxxxxxx
+'''
+#!/usr/bin/env python
+# -*- encoding: utf-8 -*-
+'''
+@File    :   engine.py
 @Time    :   2025/12/30 22:23:12
 @Author  :   sss
 @description   :   xxxxxxxxx
@@ -9,7 +17,6 @@
 
 
 import torch
-from util.misc import Accumulator
 import util.misc as util
 from datasets.fashion_mnist_eval import FashionMnistEvaluator
 def train_one_epoch(model:torch.nn.Module, criterion, data_loader, optimizer, epoch):

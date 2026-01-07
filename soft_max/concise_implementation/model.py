@@ -42,8 +42,8 @@ class PostProcess(torch.nn.Module):
             
         correct_mask = preds == labels
         return {
-            "preds": preds.detach(),
-            "labels":labels.detach(), 
+            "preds": preds,
+            "labels":labels, 
             "num_correct": correct_mask.sum(),
             "num_samples": labels.numel()
         }

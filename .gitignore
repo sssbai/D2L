@@ -2,3 +2,6 @@ data/
 
 # Python cache
 __pycache__/
+
+
+wandb/
