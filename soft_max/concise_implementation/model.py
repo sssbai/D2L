@@ -8,15 +8,43 @@
 '''
 import torch
 class LinRegSm(torch.nn.Module):
-    def __init__(self, num_inputs, num_outputs):
+    def __init__(self, num_inputs, num_classes):
         super().__init__()
         self.num_inputs = num_inputs
-        self.num_outputs = num_outputs
+        self.num_classes = num_classes
         self.block = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(self.num_inputs, self.num_outputs),
+            torch.nn.Linear(self.num_inputs, self.num_classes),
         )
     def forward(self, x):
         x = self.block(x)
         return x
+    
+def cross_entropy_loss(logits, labels):
+    results = torch.nn.functional.cross_entropy(logits, labels)
+    return results
+    
+
+class SetCriterion(torch.nn.Module):
+    def __init__(self, args):
+        super().__init__()
+    
+    def forward(self, logits, labels):
+        return cross_entropy_loss(logits, labels)
+    
+class PostProcess(torch.nn.Module):
+        
+    def forward(self, logits:torch.Tensor, labels:torch.Tensor):
+        if logits.ndim > 1 and logits.size(-1) > 1:
+            preds = logits.argmax(dim=-1)
+        else:
+            preds = logits
+            
+        correct_mask = preds == labels
+        return {
+            "preds": preds.detach(),
+            "labels":labels.detach(), 
+            "num_correct": correct_mask.sum(),
+            "num_samples": labels.numel()
+        }
         

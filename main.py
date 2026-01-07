@@ -136,21 +136,15 @@ def main_manual_linregsm():
     optimizer = SGD([model.w, model.b], lr=args.learning_rate)
     criterion = SetCriterion(args)
     postprocessors = accuracy
-    metrics = defaultdict()
+    metrics = defaultdict(list)
     for epoch in range(args.start_epoch, args.epochs):
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, epoch)
         print(id(data_loader_test))
         test_stats = evaluate(model, criterion, postprocessors, data_loader_test)
         for k, v in train_stats.items():
-            if k in metrics:
-                metrics[k].append(v)
-            else:
-                metrics[k] = [v]
+            metrics[k].append(v)
         for k, v in test_stats.items():
-            if k in metrics:
-                metrics[k].append(v)
-            else:
-                metrics[k] = [v]
+            metrics[k].append(v)
 
     for k, v in metrics.items():
         plot(v)
@@ -166,6 +160,37 @@ def main_manual_linregsm():
     show_images(x[:n].reshape(n, 28, 28), 1, n, titles=titles)
     plt.show()
      
+def main_concise_linregsm():
+    from soft_max.concise_implementation.model import SetCriterion, PostProcess, LinRegSm
+    from soft_max.concise_implementation.engine import train_one_epoch, evaluate
+    
+    args = get_args_parser()
+    dataset_train, dataset_test = get_datasets(args)
+    
+    dataset_loader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    dataset_loader_test = DataLoader(dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    
+    model = LinRegSm(args.num_inputs, args.num_classes)
+    criterion = SetCriterion(args)
+    postprocessor = PostProcess()
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate)
+    metrics = defaultdict(list)
+    class_preds = [[0]*args.num_classes]
+    for epoch in range(args.epochs):
+        train_stats = train_one_epoch(model, criterion, dataset_loader_train, optimizer, epoch)
+        test_stats, fashionmnist_evaluator = evaluate(model, criterion, postprocessor, dataset_loader_test, args)
+        for k, v in train_stats.items():
+            metrics[k].append(v)
+        for k, v in test_stats.items():
+            metrics[k].append(v)
+        metrics['classes'].append([x/y for x, y in zip(fashionmnist_evaluator.pred_counts,fashionmnist_evaluator.label_counts)])
+    metrics['classes'] = list(map(list, zip(*metrics['classes'])))
+
+    for k, v in metrics.items():
+        plot(v)
+        save_plot("_".join([model.__class__.__name__, k]))
+        plt.close()
+    
 def get_args_parser():
     parser = argparse.ArgumentParser(
         description='The study of D2L.')
@@ -179,9 +204,9 @@ def get_args_parser():
     parser.add_argument("--learning_rate", default=1e-1, type=float)
     parser.add_argument("--num_workers", default=1, type=int)
     parser.add_argument("--start_epoch", default=0, type=int)
-    parser.add_argument("--epochs", default=1, type=int)
+    parser.add_argument("--epochs", default=10, type=int)
     parser.add_argument("--num_inputs", default=784, type=int)
-    parser.add_argument("--num_outputs", default=10, type=int)
+    parser.add_argument("--num_classes", default=10, type=int)
     args = parser.parse_args()
     return args
 def get_datasets(args):
@@ -194,7 +219,23 @@ def get_datasets(args):
 if __name__ == "__main__":
     # main_manual_linreg()
     # main_concise_linreg()
-    main()
+    # main()
+    main_concise_linregsm()
+    
+    # x = torch.arange(20).reshape(4, 5)
+    # print("x = ", x)
+    # y = torch.arange(1,5).reshape(-1, 1)
+    # print("y = ", y)
+    
+    # print(x, x.shape)
+    # print(y, y.shape)
+    # from soft_max.concise_implementation.model import *
+    # post = PostProcess()
+    # res = post(x,y)
+    # data = FashionMNIST("data", train=False)
+    # print(res)
+    
+    
     
     
     

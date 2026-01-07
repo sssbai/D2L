@@ -6,12 +6,6 @@
 @Author  :   sss
 @description   :   xxxxxxxxx
 '''
-import torch
-from torchvision.datasets import FashionMNIST
 
-class FashionMNISTClassification(FashionMNIST):
-    def __init__(self, root, ):
-        super().__init__()
-        self.
         
         

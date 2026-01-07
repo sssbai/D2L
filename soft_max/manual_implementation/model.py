@@ -18,10 +18,10 @@ def softmax(x):
 #     return softmax(torch.matmul(x.reshape((-1, w.shape[0])),w)+b)
 
 class LinRegSm(torch.nn.Module):
-    def __init__(self, num_inputs, num_outputs):
+    def __init__(self, num_inputs, num_classes):
         super().__init__()
-        self.w = torch.normal(0, 0.01, size=(num_inputs, num_outputs), requires_grad=True)
-        self.b = torch.zeros(num_outputs, requires_grad=True)
+        self.w = torch.normal(0, 0.01, size=(num_inputs, num_classes), requires_grad=True)
+        self.b = torch.zeros(num_classes, requires_grad=True)
     
     def parameters(self):
         yield self.w
@@ -34,5 +34,5 @@ class LinRegSm(torch.nn.Module):
 def build_linreg_sm(args):
     return LinRegSm(
         num_inputs = args.num_inputs,
-        num_outputs = args.num_outputs
+        num_classes = args.num_classes
         )
